@@ -1,0 +1,35 @@
+{
+    "AWSEBDockerrunVersion": "1",
+    "Image": {
+      "Name": "datadog/agent:latest"
+    },
+    "Ports": [
+      {
+        "ContainerPort": "8126",
+        "HostPort": "8126"
+      }
+    ],
+    "Volumes": [
+      {
+        "HostDirectory": "/var/run/docker.sock",
+        "ContainerDirectory": "/var/run/docker.sock"
+      }
+    ],
+    "Logging": "/var/log/datadog",
+    "Environment": [
+      {
+        "Name": "DD_API_KEY",
+        "Value": "33b1a8614e53746932be714cc475a4dd"
+      },
+      {
+        "Name": "DD_SITE",
+        "Value": "datadoghq.com"
+      },
+      {
+        "Name": "DD_APM_ENABLED",
+        "Value": "true"
+      }
+    ]
+  }
+  
+

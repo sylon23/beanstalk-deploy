@@ -1,0 +1,17 @@
+container_commands:
+  01-install-aws-cli:
+    command: "yum install -y aws-cli"
+    ignoreErrors: true
+
+  02-stop-datadog-agent:
+    command: |
+      SSM_PARAM_NAME="enable_datadog_agent"
+      PARAM_VALUE=$(aws ssm get-parameter --name "$SSM_PARAM_NAME" --query "Parameter.Value" --output text --region us-east-1)
+
+      if [ "$PARAM_VALUE" == "false" ]; then
+        echo "SSM Parameter is false. Stopping Datadog agent..."
+        sudo stop datadog-agent
+      else
+        echo "SSM Parameter is true. Keeping Datadog agent running."
+      fi
+

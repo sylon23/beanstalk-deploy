@@ -1,0 +1,238 @@
+#####zipping archive without the containing folder plus hidden file
+zip -r archive.zip . *
+
+
+#####setting the parameter
+aws ssm put-parameter \
+    --name "datadog_started" \
+    --value "false" \
+    --type "String" \
+    --overwrite
+
+####adding ssm parameter permission to the instance role
+aws iam put-role-policy \
+  --role-name aws-elasticbeanstalk-ec2-role \
+  --policy-name AllowSSMGetParameter \
+  --policy-document '{
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": "ssm:GetParameter",
+        "Resource": "arn:aws:ssm:eu-west-2:557578429640:parameter/datadog_started"
+      }
+    ]
+  }'
+
+
+######eventbridge command to triger on ssm parameter update
+aws events put-rule --name "DatadogSSMUpdateRule" \
+  --event-pattern '{
+    "source": ["aws.ssm"],
+    "detail-type": ["Parameter Store Change"],
+    "detail": {
+      "name": ["datadog_started"],
+      "operation": ["Update"],
+      "value": ["true"]
+    }
+  }' \
+  --region eu-west-1
+
+
+##### SSM automation
+aws ssm create-document --name "StartDatadogIfEnabled" \
+  --document-type "Command" \
+  --content '{
+    "schemaVersion": "2.2",
+    "description": "Start Datadog Agent only if SSM parameter is true",
+    "mainSteps": [
+      {
+        "action": "aws:runShellScript",
+        "name": "CheckAndStartDatadog",
+        "inputs": {
+          "runCommand": [
+            "PARAM_VALUE=$(aws ssm get-parameter --name datadog_started --query \"Parameter.Value\" --output text)",
+            "if [ \"$PARAM_VALUE\" == \"true\" ]; then",
+            "  echo \"Datadog is enabled, starting agent...\"",
+            "  sudo docker start current-datadog-agent-1",
+            "else",
+            "  echo \"Datadog is disabled, skipping...\"",
+            "fi"
+          ]
+        }
+      }
+    ]
+  }' \
+  --region eu-west-1
+
+
+  #######
+  aws events put-targets --rule "SSMParameterChange" \
+  --targets '[{
+    "Id": "StartDatadogSSMCommand",
+    "Arn": "arn:aws:ssm:eu-west-1:YOUR_ACCOUNT_ID:automation-definition/StartDatadogIfEnabled",
+    "RoleArn": "arn:aws:iam::YOUR_ACCOUNT_ID:role/EventBridgeSSMExecutionRole",
+    "Input": "{\"DocumentName\":\"StartDatadogIfEnabled\", \"Targets\": [{\"Key\":\"tag:app\", \"Values\":[\"test\"]}]}"
+  }]'
+
+
+######## add SSM get parameter permissions to instance role
+aws iam put-role-policy \
+  --role-name AWSSystemsManagerDefaultEC2InstanceManagementRole \
+  --policy-name AllowGetDatadogParameter \
+  --policy-document '{
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": "ssm:GetParameter",
+        "Resource": "arn:aws:ssm:eu-west-2:557578429640:parameter/datadog_started"
+      }
+    ]
+  }'
+
+-------------------
+aws ssm create-document --name "StartDatadogIfEnabled2" \
+  --document-type "Automation" \
+  --content '{
+    "schemaVersion": "0.3",
+    "description": "Start Datadog Agent only if SSM parameter is true",
+    "mainSteps": [
+      {
+        "action": "aws:runCommand",
+        "name": "CheckAndStartDatadog",
+        "inputs": {
+          "DocumentName": "AWS-RunShellScript",
+          "Targets": [{"Key": "tag:app", "Values": ["test"]}],
+          "Parameters": {
+            "commands": [
+              "PARAM_VALUE=$(aws ssm get-parameter --name datadog_started --query \"Parameter.Value\" --output text)",
+              "if [ \"$PARAM_VALUE\" == \"true\" ]; then",
+              "  echo \"Datadog is enabled, starting agent...\"",
+              "  if sudo docker ps -a | grep -q current-datadog-agent-1; then",
+              "    sudo docker start current-datadog-agent-1",
+              "  else",
+              "    echo \"Datadog container not found, skipping...\"",
+              "  fi",
+              "else",
+              "  echo \"Datadog is disabled, skipping...\"",
+              "fi"
+            ]
+          }
+        }
+      }
+    ]
+  }' \
+  --region eu-west-1
+
+
+aws events put-rule --name "DatadogSSMUpdateRule" \
+  --event-pattern '{
+    "source": ["aws.ssm"],
+    "detail-type": ["Parameter Store Change"],
+    "detail": {
+      "name": ["datadog_started"],
+      "operation": ["Update"]
+    }
+  }' \
+  --region eu-west-1
+
+
+aws events put-targets --rule "DatadogSSMUpdateRule" \
+  --targets '[{
+    "Id": "StartDatadogSSMCommand",
+    "Arn": "arn:aws:ssm:eu-west-1:557578429640:automation-definition/StartDatadogIfEnabled2",
+    "RoleArn": "arn:aws:iam::557578429640:role/EventBridgeSSMExecutionRole",
+    "Input": "{\"DocumentName\":\"StartDatadogIfEnabled\", \"TargetParameterName\": \"InstanceId\", \"Targets\": [{\"Key\": \"tag:app\", \"Values\": [\"test\"]}]}"
+  }]' \
+ --region eu-west-1
+---------------------
+Testing
+######## Check parameter store value
+aws ssm get-parameters --names "datadog_started" --region eu-west-1
+
+#######Switch parameter value to true
+aws ssm put-parameter --name "datadog_started" --value "false" --type "String" --overwrite --region eu-west-1
+
+
+
+#####manually scale beanstalk environment
+aws elasticbeanstalk update-environment \
+  --environment-name DD-test-env \
+  --option-settings Namespace=aws:autoscaling:asg,OptionName=MinSize,Value=2 \
+                   Namespace=aws:autoscaling:asg,OptionName=MaxSize,Value=3 \
+  --region eu-west-1
+
+aws autoscaling update-auto-scaling-group \
+  --auto-scaling-group-name awseb-e-qnkyydnzxx-stack-AWSEBAutoScalingGroup-6gwqLQzJyaXR \
+  --desired-capacity 2 \
+  --region eu-west-1
+
+-------------------------
+aws ssm put-parameter --name "datadog_started" --value "true" --type "String" --overwrite --region eu-west-1
+
+aws events list-rules --region eu-west-1
+
+aws events list-rule-names-by-target --target-arn "arn:aws:ssm:eu-west-1:557578429640:automation-definition/StartDatadogIfEnabled" --region eu-west-1
+
+
+awseb-e-qnkyydnzxx-stack-AWSEBAutoScalingGroup-6gwqLQzJyaXR
+
+
+"arn:aws:events:eu-west-1:557578429640:rule/DatadogSSMUpdateRule",
+
+
+Debugging
+aws events list-rules --query "Rules[?Name=='DatadogSSMUpdateRule']"
+
+
+
+#######The Workflow
+
+1. When new instances come up by the regular deploy to DR workflow, SSM parameter is set to false. The Eb extension script stops the agent.
+
+2. When the deploy to DR workflow is triggered, SSM parameter is set to true. SSM document is run on existing instances to bring Datadog up
+
+3. Newly scaled instances should automatically come up with Datadog since the SSM parameter is set to true
+
+
+
+
+container_commands:
+  01-install-aws-cli:
+    command: "yum install -y aws-cli"
+    ignoreErrors: true
+
+  02-stop-datadog-agent:
+    command: |
+      echo "Attempting to disable Datadog..." >> /var/log/datadog_status.log
+      export AWS_REGION=eu-west-1
+      SSM_PARAM_NAME="datadog_started"
+      DATADOG_START =$(aws ssm get-parameter --name "$SSM_PARAM_NAME" --query "Parameter.Value" --output text)
+
+      if [ "$DATADOG_START" == "false" ]; then
+        echo "SSM Parameter is false. Stopping Datadog agent..." >> /var/log/datadog_status.log
+        sudo docker stop current-datadog-agent-1
+      else
+        echo "SSM Parameter is true. Keeping Datadog agent running." >> /var/log/datadog_status.log
+      fi
+
+
+
+
+      EventBridgeSSMAutomationRole
+      arn:aws:iam::557578429640:role/EventBridgeSSMAutomationRole
+
+
+
+
+Setting up Event Bridge on the console
+https://docs.aws.amazon.com/systems-manager/latest/userguide/sysman-paramstore-cwe.html
+Doc appear to have fixed issue with assume role during eventbridge setup:
+        https://stackoverflow.com/questions/69913355/aws-ssm-document-assume-role-is-unable-to-be-assumed-for-service-catalog?utm_source=pocket_shared
+
+
+
+
+
+######An error occurred (AccessDeniedException) when calling the GetParameter operation: User: arn:aws:sts::557578429640:assumed-role/AWSSystemsManagerDefaultEC2InstanceManagementRole/i-04653d64d74087955 is not authorized to perform: ssm:GetParameter on resource: arn:aws:ssm:eu-west-1:557578429640:parameter/datadog_started because no identity-based policy allows the ssm:GetParameter action

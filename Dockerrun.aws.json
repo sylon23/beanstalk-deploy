@@ -1,0 +1,61 @@
+{
+    "AWSEBDockerrunVersion": 2,
+    "volumes": [
+        {
+            "name": "docker_sock",
+            "host": {
+                "sourcePath": "/var/run/docker.sock"
+            }
+        },
+        {
+            "name": "proc",
+            "host": {
+                "sourcePath": "/proc/"
+            }
+        },
+        {
+            "name": "cgroup",
+            "host": {
+                "sourcePath": "/cgroup/"
+            }
+        }
+    ],
+    "containerDefinitions": [
+        {
+            "name": "dd-agent",
+            "image": "gcr.io/datadoghq/agent:7",
+            "environment": [
+                {
+                    "name": "DD_API_KEY",
+                    "value": "33b1a8614e53746932be714cc475a4dd"
+                },
+                {
+                    "name": "DD_SITE",
+                    "value": "datadoghq.com"
+                },
+                {
+                    "name": "DD_TAGS",
+                    "value": "env:dev"
+                }
+            ],
+            "memory": 256,
+            "mountPoints": [
+                {
+                    "sourceVolume": "docker_sock",
+                    "containerPath": "/var/run/docker.sock",
+                    "readOnly": false
+                },
+                {
+                    "sourceVolume": "proc",
+                    "containerPath": "/host/proc",
+                    "readOnly": true
+                },
+                {
+                    "sourceVolume": "cgroup",
+                    "containerPath": "/host/sys/fs/cgroup",
+                    "readOnly": true
+                }
+            ]
+        }
+    ]
+}

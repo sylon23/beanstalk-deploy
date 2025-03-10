@@ -1,0 +1,23 @@
+{
+    "AWSEBDockerrunVersion": "1",
+    "Image": {
+      "Name": "gcr.io/datadoghq/agent:latest"
+    },
+    "Ports": [
+      {
+        "ContainerPort": 8126,
+        "HostPort": "8126"
+      }
+    ],
+    "Environment": [
+      {
+        "Name": "DD_API_KEY",
+        "Value": "33b1a8614e53746932be714cc475a4dd"
+      },
+      {
+        "Name": "DD_SITE",
+        "Value": "datadoghq.com"
+      }
+    ]
+  }
+  
