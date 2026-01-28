@@ -19,7 +19,7 @@ aws iam put-role-policy \
       {
         "Effect": "Allow",
         "Action": "ssm:GetParameter",
-        "Resource": "arn:aws:ssm:eu-west-2:557578429640:parameter/datadog_started"
+        "Resource": "arn:aws:ssm:eu-west-2:youraccount:parameter/datadog_started"
       }
     ]
   }'
@@ -86,7 +86,7 @@ aws iam put-role-policy \
       {
         "Effect": "Allow",
         "Action": "ssm:GetParameter",
-        "Resource": "arn:aws:ssm:eu-west-2:557578429640:parameter/datadog_started"
+        "Resource": "arn:aws:ssm:eu-west-2:youraccount:parameter/datadog_started"
       }
     ]
   }'
@@ -141,8 +141,8 @@ aws events put-rule --name "DatadogSSMUpdateRule" \
 aws events put-targets --rule "DatadogSSMUpdateRule" \
   --targets '[{
     "Id": "StartDatadogSSMCommand",
-    "Arn": "arn:aws:ssm:eu-west-1:557578429640:automation-definition/StartDatadogIfEnabled2",
-    "RoleArn": "arn:aws:iam::557578429640:role/EventBridgeSSMExecutionRole",
+    "Arn": "arn:aws:ssm:eu-west-1:youraccount:automation-definition/StartDatadogIfEnabled2",
+    "RoleArn": "arn:aws:iam::youraccount:role/EventBridgeSSMExecutionRole",
     "Input": "{\"DocumentName\":\"StartDatadogIfEnabled\", \"TargetParameterName\": \"InstanceId\", \"Targets\": [{\"Key\": \"tag:app\", \"Values\": [\"test\"]}]}"
   }]' \
  --region eu-west-1
@@ -173,7 +173,7 @@ aws ssm put-parameter --name "datadog_started" --value "true" --type "String" --
 
 aws events list-rules --region eu-west-1
 
-aws events list-rule-names-by-target --target-arn "arn:aws:ssm:eu-west-1:557578429640:automation-definition/StartDatadogIfEnabled" --region eu-west-1
+aws events list-rule-names-by-target --target-arn "arn:aws:ssm:eu-west-1:youraccount:automation-definition/StartDatadogIfEnabled" --region eu-west-1
 
 
 awseb-e-qnkyydnzxx-stack-AWSEBAutoScalingGroup-6gwqLQzJyaXR
@@ -220,9 +220,7 @@ container_commands:
 
 
 
-      EventBridgeSSMAutomationRole
-      arn:aws:iam::557578429640:role/EventBridgeSSMAutomationRole
-
+     
 
 
 
